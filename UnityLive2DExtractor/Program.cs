@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using AssetStudio;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -13,13 +15,24 @@ namespace UnityLive2DExtractor
     {
         static void Main(string[] args)
         {
+            var targetIsFile = false;
             if (args.Length != 1)
                 return;
-            if (!Directory.Exists(args[0]))
-                return;
-            Console.WriteLine($"Loading...");
+            var fileName = Path.GetFileName(args[0]);
             var assetsManager = new AssetsManager();
-            assetsManager.LoadFolder(args[0]);
+            if (Directory.Exists(args[0]))
+                assetsManager.LoadFolder(args[0]);
+            else if (File.Exists(args[0]))
+            {
+                assetsManager.LoadFiles(args[0]);
+                targetIsFile = true;
+            }
+            else return;
+            Console.WriteLine($"Loading...");
+
+
+
+
             if (assetsManager.assetsFileList.Count == 0)
                 return;
             var containers = new Dictionary<AssetStudio.Object, string>();
@@ -50,22 +63,14 @@ namespace UnityLive2DExtractor
                                     var pptr = m_AssetBundle.m_PreloadTable[k];
                                     if (pptr.TryGet(out var obj))
                                     {
-                                        containers[obj] = m_Container.Key;
+                                        containers[obj] = m_Container.Key.Replace("resources", m_Container.Key.Replace("assets/assetbundles/cubismmodels/resources/", "").Replace(".prefab", ""));
                                     }
-                                }
-                            }
-                            break;
-                        case ResourceManager m_ResourceManager:
-                            foreach (var m_Container in m_ResourceManager.m_Container)
-                            {
-                                if (m_Container.Value.TryGet(out var obj))
-                                {
-                                    containers[obj] = m_Container.Key;
                                 }
                             }
                             break;
                     }
                 }
+                            break;
             }
             var basePathList = new List<string>();
             foreach (var cubismMoc in cubismMocs)
@@ -82,13 +87,15 @@ namespace UnityLive2DExtractor
                 if (key == null)
                     continue;
                 var name = key.Substring(key.LastIndexOf("/") + 1);
-                Console.WriteLine($"Extract {key}");
+                Console.WriteLine($"Extract {name}");
 
                 var destPath = Path.Combine(baseDestPath, key) + Path.DirectorySeparatorChar;
                 var destTexturePath = Path.Combine(destPath, "textures") + Path.DirectorySeparatorChar;
+                var destExpressionPath = Path.Combine(destPath, "expressions") + Path.DirectorySeparatorChar;
                 var destAnimationPath = Path.Combine(destPath, "motions") + Path.DirectorySeparatorChar;
                 Directory.CreateDirectory(destPath);
                 Directory.CreateDirectory(destTexturePath);
+                Directory.CreateDirectory(destExpressionPath);
                 Directory.CreateDirectory(destAnimationPath);
 
                 var monoBehaviours = new List<MonoBehaviour>();
@@ -116,6 +123,8 @@ namespace UnityLive2DExtractor
                     }
                 }
 
+                am.UnloadAll();
+
                 //physics
                 var physics = monoBehaviours.FirstOrDefault(x =>
                 {
@@ -139,9 +148,11 @@ namespace UnityLive2DExtractor
                     return false;
                 });
                 File.WriteAllBytes($"{destPath}{name}.moc3", ParseMoc(moc));
+
+
                 //texture
                 var textures = new SortedSet<string>();
-                foreach (var texture2D in texture2Ds)
+                foreach (var texture2D in assets.OfType<Texture2D>())
                 {
                     using (var bitmap = new Texture2DConverter(texture2D).ConvertToBitmap(true))
                     {
@@ -149,15 +160,12 @@ namespace UnityLive2DExtractor
                         bitmap.Save($"{destTexturePath}{texture2D.m_Name}.png", ImageFormat.Png);
                     }
                 }
-                //motion
+                //motions
                 var motions = new List<string>();
-                var rootTransform = gameObjects[0].m_Transform;
-                while (rootTransform.m_Father.TryGet(out var m_Father))
-                {
-                    rootTransform = m_Father;
-                }
-                rootTransform.m_GameObject.TryGet(out var rootGameObject);
-                var converter = new CubismMotion3Converter(rootGameObject, animationClips.ToArray());
+                var animator = (Animator)assets.First(x => x is Animator);
+                var animations = assets.OfType<AnimationClip>().ToArray();
+                animator.m_GameObject.TryGet(out GameObject rootGameObject);
+                var converter = new CubismMotion3Converter(rootGameObject, animations);
                 foreach (ImportedKeyframedAnimation animation in converter.AnimationList)
                 {
                     var json = new CubismMotion3Json
@@ -309,7 +317,8 @@ namespace UnityLive2DExtractor
                         Moc = $"{name}.moc3",
                         Textures = textures.ToArray(),
                         //Physics = $"{name}.physics3.json",
-                        Motions = job
+                        Motions = job,
+                        Expressions = expressionArray
                     },
                     Groups = groups.ToArray()
                 };
@@ -320,7 +329,6 @@ namespace UnityLive2DExtractor
                 File.WriteAllText($"{destPath}{name}.model3.json", JsonConvert.SerializeObject(model3, Formatting.Indented));
             }
             Console.WriteLine("Done!");
-            Console.Read();
         }
 
         private static string ParsePhysics(MonoBehaviour physics)

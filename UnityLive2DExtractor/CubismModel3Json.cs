@@ -19,6 +19,7 @@ namespace UnityLive2DExtractor
             public string[] Textures;
             public string Physics;
             public JObject Motions;
+            public JArray Expressions;
         }
 
         public class SerializableGroup
