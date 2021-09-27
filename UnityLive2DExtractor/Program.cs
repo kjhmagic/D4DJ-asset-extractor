@@ -83,6 +83,28 @@ namespace UnityLive2DExtractor
             var baseDestPath = Path.Combine(Path.GetDirectoryName(args[0]), "Live2DOutput");
             foreach (var assets in lookup)
             {
+<<<<<<< HEAD
+=======
+                var savePath = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(args[0])), "images") + Path.DirectorySeparatorChar;
+                Directory.CreateDirectory(savePath);
+                foreach (var assets in lookup)
+                {
+                    foreach (var texture2D in assets.OfType<Texture2D>())
+                    {
+                        using (var bitmap = new Texture2DConverter(texture2D).ConvertToBitmap(true))
+                        {
+                            bitmap.Save($"{savePath}{texture2D.m_Name}.png", ImageFormat.Png);
+                        }
+                    }
+                }
+                return;
+            }
+
+            var am = new AssetsTools.NET.Extra.AssetsManager();
+            foreach (var item in lookup.Select((value, index) => new { index, value }))
+            {
+                var assets = item.value;
+>>>>>>> 2b19563 (Update Program.cs)
                 var key = assets.Key;
                 if (key == null)
                     continue;
