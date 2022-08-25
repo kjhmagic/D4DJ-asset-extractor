@@ -4,8 +4,9 @@ using System.Drawing.Imaging;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Texture2DDecoder;
+using AssetStudio;
 
-namespace AssetStudio
+namespace UnityLive2DExtractor
 {
     public class Texture2DConverter
     {
@@ -90,15 +91,15 @@ namespace AssetStudio
                 case TextureFormat.BGRA32: //test pass
                     bytes = DecodeBGRA32();
                     break;
-                //case TextureFormat.RHalf:
-                //    bytes = DecodeRHalf();
-                //    break;
-                //case TextureFormat.RGHalf:
-                //    bytes = DecodeRGHalf();
-                //    break;
-                //case TextureFormat.RGBAHalf: //test pass
-                //    bytes = DecodeRGBAHalf();
-                    //break;
+                case TextureFormat.RHalf:
+                    bytes = DecodeRHalf();
+                    break;
+                case TextureFormat.RGHalf:
+                    bytes = DecodeRGHalf();
+                    break;
+                case TextureFormat.RGBAHalf: //test pass
+                    bytes = DecodeRGBAHalf();
+                    break;
                 case TextureFormat.RFloat:
                     bytes = DecodeRFloat();
                     break;
@@ -386,44 +387,44 @@ namespace AssetStudio
             return buff;
         }
 
-        //private byte[] DecodeRHalf()
-        //{
-        //    var buff = new byte[m_Width * m_Height * 4];
-        //    for (var i = 0; i < buff.Length; i += 4)
-        //    {
-        //        buff[i] = 0;
-        //        buff[i + 1] = 0;
-        //        buff[i + 2] = (byte)Math.Round(System.Half.ToHalf(image_data, i / 2) * 255f);
-        //        buff[i + 3] = 255;
-        //    }
-        //    return buff;
-        //}
+        private byte[] DecodeRHalf()
+        {
+            var buff = new byte[m_Width * m_Height * 4];
+            for (var i = 0; i < buff.Length; i += 4)
+            {
+                buff[i] = 0;
+                buff[i + 1] = 0;
+                buff[i + 2] = (byte)Math.Round(AssetStudio.Half.ToHalf(image_data, i / 2) * 255f);
+                buff[i + 3] = 255;
+            }
+            return buff;
+        }
 
-        //private byte[] DecodeRGHalf()
-        //{
-        //    var buff = new byte[m_Width * m_Height * 4];
-        //    for (var i = 0; i < buff.Length; i += 4)
-        //    {
-        //        buff[i] = 0;
-        //        buff[i + 1] = (byte)Math.Round(Half.ToHalf(image_data, i + 2) * 255f);
-        //        buff[i + 2] = (byte)Math.Round(Half.ToHalf(image_data, i) * 255f);
-        //        buff[i + 3] = 255;
-        //    }
-        //    return buff;
-        //}
+        private byte[] DecodeRGHalf()
+        {
+            var buff = new byte[m_Width * m_Height * 4];
+            for (var i = 0; i < buff.Length; i += 4)
+            {
+                buff[i] = 0;
+                buff[i + 1] = (byte)Math.Round(AssetStudio.Half.ToHalf(image_data, i + 2) * 255f);
+                buff[i + 2] = (byte)Math.Round(AssetStudio.Half.ToHalf(image_data, i) * 255f);
+                buff[i + 3] = 255;
+            }
+            return buff;
+        }
 
-        //private byte[] DecodeRGBAHalf()
-        //{
-        //    var buff = new byte[m_Width * m_Height * 4];
-        //    for (var i = 0; i < buff.Length; i += 4)
-        //    {
-        //        buff[i] = (byte)Math.Round(Half.ToHalf(image_data, i * 2 + 4) * 255f);
-        //        buff[i + 1] = (byte)Math.Round(Half.ToHalf(image_data, i * 2 + 2) * 255f);
-        //        buff[i + 2] = (byte)Math.Round(Half.ToHalf(image_data, i * 2) * 255f);
-        //        buff[i + 3] = (byte)Math.Round(Half.ToHalf(image_data, i * 2 + 6) * 255f);
-        //    }
-        //    return buff;
-        //}
+        private byte[] DecodeRGBAHalf()
+        {
+            var buff = new byte[m_Width * m_Height * 4];
+            for (var i = 0; i < buff.Length; i += 4)
+            {
+                buff[i] = (byte)Math.Round(AssetStudio.Half.ToHalf(image_data, i * 2 + 4) * 255f);
+                buff[i + 1] = (byte)Math.Round(AssetStudio.Half.ToHalf(image_data, i * 2 + 2) * 255f);
+                buff[i + 2] = (byte)Math.Round(AssetStudio.Half.ToHalf(image_data, i * 2) * 255f);
+                buff[i + 3] = (byte)Math.Round(AssetStudio.Half.ToHalf(image_data, i * 2 + 6) * 255f);
+            }
+            return buff;
+        }
 
         private byte[] DecodeRFloat()
         {

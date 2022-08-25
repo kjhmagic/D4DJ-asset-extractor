@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using AssetStudio;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -13,6 +11,8 @@ namespace UnityLive2DExtractor
 {
     class Program
     {
+        public static AssemblyLoader assemblyLoader = new AssemblyLoader();
+
         static void Main(string[] args)
         {
             var targetIsFile = false;
@@ -30,11 +30,13 @@ namespace UnityLive2DExtractor
             else return;
             Console.WriteLine($"Loading...");
 
-
-
-
             if (assetsManager.assetsFileList.Count == 0)
+            {
+                Console.WriteLine($"Target Files are not having any asset file");
                 return;
+            }
+           
+            // 
             var containers = new Dictionary<AssetStudio.Object, string>();
             var cubismMocs = new List<MonoBehaviour>();
             foreach (var assetsFile in assetsManager.assetsFileList)
@@ -68,9 +70,17 @@ namespace UnityLive2DExtractor
                                 }
                             }
                             break;
+                        case ResourceManager m_ResourceManager:
+                            foreach (var m_Container in m_ResourceManager.m_Container)
+                            {
+                                if (m_Container.Value.TryGet(out var obj))
+                                {
+                                    containers[obj] = m_Container.Key;
+                                }
+                            }
+                            break;
                     }
                 }
-                            break;
             }
             var basePathList = new List<string>();
             foreach (var cubismMoc in cubismMocs)
@@ -80,50 +90,41 @@ namespace UnityLive2DExtractor
                 basePathList.Add(basePath);
             }
             var lookup = containers.ToLookup(x => basePathList.Find(b => x.Value.Contains(b)), x => x.Key);
-            var baseDestPath = Path.Combine(Path.GetDirectoryName(args[0]), "Live2DOutput");
+            var baseDestPath = Path.Combine(targetIsFile ? Path.GetDirectoryName(Path.GetDirectoryName(args[0])) : Path.GetDirectoryName(args[0]), "Live2D");
+            var am = new AssetsTools.NET.Extra.AssetsManager();
             foreach (var assets in lookup)
             {
-<<<<<<< HEAD
-=======
-                var savePath = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(args[0])), "images") + Path.DirectorySeparatorChar;
-                Directory.CreateDirectory(savePath);
-                foreach (var assets in lookup)
-                {
-                    foreach (var texture2D in assets.OfType<Texture2D>())
-                    {
-                        using (var bitmap = new Texture2DConverter(texture2D).ConvertToBitmap(true))
-                        {
-                            bitmap.Save($"{savePath}{texture2D.m_Name}.png", ImageFormat.Png);
-                        }
-                    }
-                }
-                return;
-            }
-
-            var am = new AssetsTools.NET.Extra.AssetsManager();
-            foreach (var item in lookup.Select((value, index) => new { index, value }))
-            {
-                var assets = item.value;
->>>>>>> 2b19563 (Update Program.cs)
                 var key = assets.Key;
                 if (key == null)
                     continue;
-                var name = key.Substring(key.LastIndexOf("/") + 1);
-                Console.WriteLine($"Extract {name}");
 
-                var destPath = Path.Combine(baseDestPath, key) + Path.DirectorySeparatorChar;
+                var name = key.Substring(key.LastIndexOf("/") + 1);
+                Console.WriteLine($"Extract {key}");
+
+                var originalFilePath = targetIsFile ? args[0] : Path.Combine(Path.GetFullPath(args[0]), $"ondemand_{name}");
+                Console.WriteLine(originalFilePath);
+
+                FileStream fs = File.OpenRead(originalFilePath);
+                var bundle = am.LoadBundleFile(fs, true);
+                var inst = am.LoadAssetsFileFromBundle(bundle, 0, true);
+
+
+
+
+                var destPath = Path.Combine(baseDestPath, name) + Path.DirectorySeparatorChar;
                 var destTexturePath = Path.Combine(destPath, "textures") + Path.DirectorySeparatorChar;
-                var destExpressionPath = Path.Combine(destPath, "expressions") + Path.DirectorySeparatorChar;
                 var destAnimationPath = Path.Combine(destPath, "motions") + Path.DirectorySeparatorChar;
+                var destExpressionPath = Path.Combine(destPath, "expressions") + Path.DirectorySeparatorChar;
                 Directory.CreateDirectory(destPath);
                 Directory.CreateDirectory(destTexturePath);
-                Directory.CreateDirectory(destExpressionPath);
                 Directory.CreateDirectory(destAnimationPath);
+                Directory.CreateDirectory(destExpressionPath);
 
                 var monoBehaviours = new List<MonoBehaviour>();
                 var texture2Ds = new List<Texture2D>();
                 var gameObjects = new List<GameObject>();
                 var animationClips = new List<AnimationClip>();
+                var expressionArray = new JArray();
 
                 foreach (var asset in assets)
                 {
@@ -145,7 +146,36 @@ namespace UnityLive2DExtractor
                     }
                 }
 
-                am.UnloadAll();
+                foreach (var asset in monoBehaviours)
+                {
+                    var m_Name = asset.m_Name;
+                    if (!m_Name.EndsWith("exp3")) continue;
+                    var tempjob = new JObject();
+                    tempjob["File"] = "expressions/" + m_Name + ".json";
+                    tempjob["Name"] = m_Name.Replace(".exp3", "");
+
+                    var expressionObj = new JObject();
+
+                    var m_GameObject = new JObject();
+                    m_GameObject["m_FileID"] = 0;
+                    m_GameObject["m_PathID"] = 0;
+                    expressionObj["m_GameObject"] = m_GameObject;
+                    expressionObj["m_Enabled"] = 1;
+                    expressionObj["m_Name"] = m_Name;
+                    expressionObj["Type"] = "Live2D Expression";
+
+
+                    var obj = asset.ToType();
+                    if(obj == null)
+                    {
+                        var type = asset.ConvertToTypeTree(assemblyLoader);
+                        obj = asset.ToType(type);
+                    }
+
+
+                    File.WriteAllText($"{destExpressionPath}{m_Name}.json", JsonConvert.SerializeObject(expressionObj, Formatting.Indented));
+                    expressionArray.Add(tempjob);
+                }
 
                 //physics
                 var physics = monoBehaviours.FirstOrDefault(x =>
@@ -171,23 +201,26 @@ namespace UnityLive2DExtractor
                 });
                 File.WriteAllBytes($"{destPath}{name}.moc3", ParseMoc(moc));
 
-
                 //texture
                 var textures = new SortedSet<string>();
-                foreach (var texture2D in assets.OfType<Texture2D>())
+                foreach (var texture2D in texture2Ds)
                 {
                     using (var bitmap = new Texture2DConverter(texture2D).ConvertToBitmap(true))
                     {
                         textures.Add($"textures/{texture2D.m_Name}.png");
-                        bitmap.Save($"{destTexturePath}{texture2D.m_Name}.png", ImageFormat.Png);
+                        bitmap.Save($"{destTexturePath}{texture2D.m_Name}.png", System.Drawing.Imaging.ImageFormat.Png);
+                        
                     }
                 }
-                //motions
+                //motion
                 var motions = new List<string>();
-                var animator = (Animator)assets.First(x => x is Animator);
-                var animations = assets.OfType<AnimationClip>().ToArray();
-                animator.m_GameObject.TryGet(out GameObject rootGameObject);
-                var converter = new CubismMotion3Converter(rootGameObject, animations);
+                var rootTransform = gameObjects[0].m_Transform;
+                while (rootTransform.m_Father.TryGet(out var m_Father))
+                {
+                    rootTransform = m_Father;
+                }
+                rootTransform.m_GameObject.TryGet(out var rootGameObject);
+                var converter = new CubismMotion3Converter(rootGameObject, animationClips.ToArray());
                 foreach (ImportedKeyframedAnimation animation in converter.AnimationList)
                 {
                     var json = new CubismMotion3Json
@@ -351,6 +384,7 @@ namespace UnityLive2DExtractor
                 File.WriteAllText($"{destPath}{name}.model3.json", JsonConvert.SerializeObject(model3, Formatting.Indented));
             }
             Console.WriteLine("Done!");
+            Console.Read();
         }
 
         private static string ParsePhysics(MonoBehaviour physics)
