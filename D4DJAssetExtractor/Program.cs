@@ -13,19 +13,21 @@ namespace UnityLive2DExtractor
     {
         public static AssemblyLoader assemblyLoader = new AssemblyLoader();
 
+        enum ParseType
+        {
+            Background,
+                Live2D
+        };
+
         static void Main(string[] args)
         {
-            var targetIsFile = false;
-            if (args.Length != 1)
+            if (args.Length < 1)
                 return;
             var fileName = Path.GetFileName(args[0]);
             var assetsManager = new AssetsManager();
-            if (Directory.Exists(args[0]))
-                assetsManager.LoadFolder(args[0]);
-            else if (File.Exists(args[0]))
+            if (File.Exists(args[0]))
             {
                 assetsManager.LoadFiles(args[0]);
-                targetIsFile = true;
             }
             else return;
             Console.WriteLine($"Loading...");
@@ -35,8 +37,27 @@ namespace UnityLive2DExtractor
                 Console.WriteLine($"Target Files are not having any asset file");
                 return;
             }
-           
-            // 
+
+            var parseType = ParseType.Live2D;
+            var savePath = Path.GetDirectoryName(args[0]);
+            var saveName = args.Length > 2 ? string.Join(" ", args.Skip(2)) : "";
+
+            if (fileName.StartsWith("ondemand_card_chara_transparent_"))
+            {
+                parseType = ParseType.Background;
+            }
+
+            if (args.Length > 1)
+            {
+                if (Directory.Exists(args[1]))
+                {
+                    Directory.CreateDirectory(args[1]);
+                }
+                savePath = args[1] + Path.DirectorySeparatorChar;
+            }
+
+            Console.WriteLine($"Save to {savePath}{saveName}");
+
             var containers = new Dictionary<AssetStudio.Object, string>();
             var cubismMocs = new List<MonoBehaviour>();
             foreach (var assetsFile in assetsManager.assetsFileList)
@@ -89,9 +110,25 @@ namespace UnityLive2DExtractor
                 var basePath = container.Substring(0, container.LastIndexOf("/"));
                 basePathList.Add(basePath);
             }
+
             var lookup = containers.ToLookup(x => basePathList.Find(b => x.Value.Contains(b)), x => x.Key);
-            var baseDestPath = Path.Combine(targetIsFile ? Path.GetDirectoryName(Path.GetDirectoryName(args[0])) : Path.GetDirectoryName(args[0]), "Live2D");
-            var am = new AssetsTools.NET.Extra.AssetsManager();
+
+            if (parseType == ParseType.Background)
+            {
+                Directory.CreateDirectory(savePath);
+                foreach (var assets in lookup)
+                {
+                    foreach (var texture2D in assets.OfType<Texture2D>())
+                    {
+                        using (var bitmap = new Texture2DConverter(texture2D).ConvertToBitmap(true))
+                        {
+                            bitmap.Save($"{savePath}{(saveName == "" ? texture2D.m_Name : saveName)}.png", System.Drawing.Imaging.ImageFormat.Png);
+                        }
+                    }
+                }
+                return;
+            }
+
             foreach (var assets in lookup)
             {
                 var key = assets.Key;
@@ -101,17 +138,10 @@ namespace UnityLive2DExtractor
                 var name = key.Substring(key.LastIndexOf("/") + 1);
                 Console.WriteLine($"Extract {key}");
 
-                var originalFilePath = targetIsFile ? args[0] : Path.Combine(Path.GetFullPath(args[0]), $"ondemand_{name}");
+                var originalFilePath = args[0];
                 Console.WriteLine(originalFilePath);
 
-                FileStream fs = File.OpenRead(originalFilePath);
-                var bundle = am.LoadBundleFile(fs, true);
-                var inst = am.LoadAssetsFileFromBundle(bundle, 0, true);
-
-
-
-
-                var destPath = Path.Combine(baseDestPath, name) + Path.DirectorySeparatorChar;
+                var destPath = Path.Combine(savePath, saveName == "" ? name : saveName) + Path.DirectorySeparatorChar;
                 var destTexturePath = Path.Combine(destPath, "textures") + Path.DirectorySeparatorChar;
                 var destAnimationPath = Path.Combine(destPath, "motions") + Path.DirectorySeparatorChar;
                 var destExpressionPath = Path.Combine(destPath, "expressions") + Path.DirectorySeparatorChar;
@@ -384,7 +414,6 @@ namespace UnityLive2DExtractor
                 File.WriteAllText($"{destPath}{name}.model3.json", JsonConvert.SerializeObject(model3, Formatting.Indented));
             }
             Console.WriteLine("Done!");
-            Console.Read();
         }
 
         private static string ParsePhysics(MonoBehaviour physics)

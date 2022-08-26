@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "UnityLive2DExtractor": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    }
+  }
+}
