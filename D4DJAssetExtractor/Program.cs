@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
@@ -39,7 +40,7 @@ namespace UnityLive2DExtractor
             }
 
             var parseType = ParseType.Live2D;
-            var savePath = Path.GetDirectoryName(args[0]);
+            var savePath = Path.GetDirectoryName(args[0]) + Path.DirectorySeparatorChar;
             var saveName = args.Length > 2 ? string.Join(" ", args.Skip(2)) : "";
 
             if (fileName.StartsWith("ondemand_card_chara_transparent_"))
@@ -201,6 +202,26 @@ namespace UnityLive2DExtractor
                         var type = asset.ConvertToTypeTree(assemblyLoader);
                         obj = asset.ToType(type);
                     }
+
+                    expressionObj["FadeInTime"] = (float)obj["FadeInTime"];
+                    expressionObj["FadeOutTime"] = (float)obj["FadeOutTime"];
+                    var tempArr = new JArray();
+                    var items = (System.Collections.Generic.List<System.Object>)obj["Parameters"];
+
+                    foreach (var item in items)
+                    {
+                        var data = (System.Collections.Specialized.OrderedDictionary)item;
+                        var tempObj = new JObject();
+                        tempObj["Id"] = (string)data["Id"];
+                        tempObj["Value"] = (float)data["Value"];
+                        tempObj["Blend"] = (int)data["Blend"];
+                        tempArr.Add(tempObj);
+                    }
+
+                    expressionObj["Parameters"] = tempArr;
+
+                    var a = obj.Keys;
+                    var b = obj.Values;
 
 
                     File.WriteAllText($"{destExpressionPath}{m_Name}.json", JsonConvert.SerializeObject(expressionObj, Formatting.Indented));
