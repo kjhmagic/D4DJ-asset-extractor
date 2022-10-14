@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Drawing.Imaging;
@@ -24,13 +24,20 @@ namespace UnityLive2DExtractor
         {
             if (args.Length < 1)
                 return;
+
             var fileName = Path.GetFileName(args[0]);
             var assetsManager = new AssetsManager();
-            if (File.Exists(args[0]))
+
+            if (Directory.Exists(args[0]))
+            {
+                assetsManager.LoadFolder(args[0]);
+            }
+            else if (File.Exists(args[0]))
             {
                 assetsManager.LoadFiles(args[0]);
             }
             else return;
+
             Console.WriteLine($"Loading...");
 
             if (assetsManager.assetsFileList.Count == 0)
@@ -40,14 +47,15 @@ namespace UnityLive2DExtractor
             }
 
             var parseType = ParseType.Live2D;
-            var savePath = Path.GetDirectoryName(args[0]) + Path.DirectorySeparatorChar;
+            //var savePath = Path.GetDirectoryName(args[0]);
+            var savePath = Path.Combine(Path.GetDirectoryName(args[0]), "Live2DOutput");
             var saveName = args.Length > 2 ? string.Join(" ", args.Skip(2)) : "";
 
             if (fileName.StartsWith("ondemand_card_chara_transparent_"))
             {
                 parseType = ParseType.Background;
             }
-
+/*
             if (args.Length > 1)
             {
                 if (Directory.Exists(args[1]))
@@ -56,7 +64,7 @@ namespace UnityLive2DExtractor
                 }
                 savePath = args[1] + Path.DirectorySeparatorChar;
             }
-
+*/
             Console.WriteLine($"Save to {savePath}{saveName}");
 
             var containers = new Dictionary<AssetStudio.Object, string>();
@@ -156,6 +164,7 @@ namespace UnityLive2DExtractor
                 var gameObjects = new List<GameObject>();
                 var animationClips = new List<AnimationClip>();
                 var expressionArray = new JArray();
+                var motionArray = new JArray();
 
                 foreach (var asset in assets)
                 {
@@ -176,6 +185,15 @@ namespace UnityLive2DExtractor
                         animationClips.Add(m_AnimationClip);
                     }
                 }
+
+                //List sorting
+                animationClips.Sort((x, y) => {
+                    return x.m_Name.CompareTo(y.m_Name);
+                });
+
+                monoBehaviours.Sort((x, y) => {
+                    return x.m_Name.CompareTo(y.m_Name);
+                });
 
                 foreach (var asset in monoBehaviours)
                 {
@@ -222,7 +240,6 @@ namespace UnityLive2DExtractor
 
                     var a = obj.Keys;
                     var b = obj.Values;
-
 
                     File.WriteAllText($"{destExpressionPath}{m_Name}.json", JsonConvert.SerializeObject(expressionObj, Formatting.Indented));
                     expressionArray.Add(tempjob);
@@ -274,6 +291,10 @@ namespace UnityLive2DExtractor
                 var converter = new CubismMotion3Converter(rootGameObject, animationClips.ToArray());
                 foreach (ImportedKeyframedAnimation animation in converter.AnimationList)
                 {
+                    var tempjob = new JObject();
+                    tempjob["File"] = "motions/" + animation.Name + ".motion3.json";
+                    tempjob["Name"] = animation.Name;
+
                     var json = new CubismMotion3Json
                     {
                         Version = 3,
@@ -365,18 +386,9 @@ namespace UnityLive2DExtractor
 
                     motions.Add($"motions/{animation.Name}.motion3.json");
                     File.WriteAllText($"{destAnimationPath}{animation.Name}.motion3.json", JsonConvert.SerializeObject(json, Formatting.Indented, new MyJsonConverter()));
+                    motionArray.Add(tempjob);
                 }
                 //model
-                var job = new JObject();
-                var jarray = new JArray();
-                foreach (var motion in motions)
-                {
-                    var tempjob = new JObject();
-                    tempjob["File"] = motion;
-                    jarray.Add(tempjob);
-                }
-                job[""] = jarray;
-
                 var groups = new List<CubismModel3Json.SerializableGroup>();
                 var eyeBlinkParameters = monoBehaviours.Where(x =>
                 {
@@ -415,6 +427,10 @@ namespace UnityLive2DExtractor
                     });
                 }
 
+                var myobj = new JObject();
+                JProperty subdatalist = new JProperty("Motion", motionArray);
+                myobj.Add(subdatalist);
+
                 var model3 = new CubismModel3Json
                 {
                     Version = 3,
@@ -423,7 +439,7 @@ namespace UnityLive2DExtractor
                         Moc = $"{name}.moc3",
                         Textures = textures.ToArray(),
                         //Physics = $"{name}.physics3.json",
-                        Motions = job,
+                        Motions = myobj,
                         Expressions = expressionArray
                     },
                     Groups = groups.ToArray()
